@@ -22,6 +22,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'role', // Añadido para permitir la asignación masiva del rol
     ];
 
     /**
@@ -45,5 +46,22 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    /**
+     * Relación con Órdenes de Trabajo
+     */
+    public function ordenes()
+    {
+        return $this->hasMany(OrdenTrabajo::class);
+    }
+
+    /**
+     * Comprobar el rol del usuario
+     * Uso: $user->hasRole('tecnico')
+     */
+    public function hasRole($role)
+    {
+        return $this->role === $role;
     }
 }
