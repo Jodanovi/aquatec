@@ -57,14 +57,17 @@
                         <thead>
                             <tr class="bg-slate-900 text-white uppercase text-[9px] sm:text-[10px] tracking-widest">
                                 <th class="p-4">OT</th>
-                                <th class="p-4">Cliente / Unidad</th>
+                                <th class="p-4 text-left">Cliente / Unidad</th>
+                                <th class="p-4 text-left">Lugar</th>
+                                <th class="p-4 text-left">Vigencia</th>
+                                <th class="p-4 text-center">Negoc.</th>
                                 <th class="p-4">Estado</th>
                                 <th class="p-4 text-center">Acciones</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
                             @foreach($ots as $ot)
-                                {{-- REGLA FILTRADO VISUAL: El técnico NO ve las creadas o en planificación --}}
+                                {{-- REGLA FILTRADO VISUAL --}}
                                 @if(auth()->user()->role == 'tecnico' && ($ot->estado == 'creada' || $ot->estado == 'en_planificacion'))
                                     @continue
                                 @endif
@@ -77,16 +80,36 @@
                                         <div class="font-bold text-gray-800 text-xs sm:text-sm uppercase">{{ $ot->cliente }}</div>
                                         <div class="text-[9px] sm:text-[10px] text-gray-500 uppercase font-medium">{{ $ot->embarcacion_unidad }}</div>
                                     </td>
+
+                                    {{-- 1. LUGAR --}}
+                                    <td class="p-4 text-[10px] sm:text-xs text-gray-600 uppercase font-semibold">
+                                        {{ $ot->lugar ?? '---' }}
+                                    </td>
+
+                                    {{-- 2. FECHA VIGENCIA --}}
+                                    <td class="p-4 text-[10px] sm:text-xs text-gray-600">
+                                        {{ $ot->permiso_fecha_vigencia ? \Carbon\Carbon::parse($ot->permiso_fecha_vigencia)->format('d/m/y') : 'S/V' }}
+                                    </td>
+
+                                    {{-- 3. NEGOCIABLE (Icono visual rápido) --}}
+                                    <td class="p-4 text-center">
+                                        @if($ot->permiso_negociable)
+                                            <span class="text-green-500 font-black text-[10px]">SÍ</span>
+                                        @else
+                                            <span class="text-gray-300 font-bold text-[10px]">NO</span>
+                                        @endif
+                                    </td>
+
                                     <td class="p-4">
                                         @php
                                             $clasesEstado = [
-                                                'creada' => 'bg-amber-50 text-amber-700 border border-amber-200', // Color suave para lo nuevo
+                                                'creada' => 'bg-amber-50 text-amber-700 border border-amber-200',
                                                 'en_planificacion' => 'bg-amber-100 text-amber-800 border border-amber-300',
                                                 'activa' => 'bg-blue-100 text-blue-600',
                                                 'finalizada' => 'bg-green-100 text-green-600'
                                             ];
                                             $textoEstado = [
-                                                'creada' => 'POR PLANIFICAR', // <--- CAMBIO AQUÍ
+                                                'creada' => 'POR PLANIFICAR',
                                                 'en_planificacion' => 'EN LOGÍSTICA',
                                                 'activa' => 'EN CURSO',
                                                 'finalizada' => 'LISTO'
@@ -96,14 +119,15 @@
                                             {{ $textoEstado[$ot->estado] ?? $ot->estado }}
                                         </span>
                                     </td>
+
                                     <td class="p-4">
                                         <div class="flex items-center justify-center gap-2">
                                             
-                                            {{-- 1. BOTÓN LOGÍSTICA/REVISAR: SOLO JEFE Y ADMIN --}}
+                                            {{-- 1. BOTÓN LOGÍSTICA/REVISAR: SOLO JEFE Y ADMIN EN ESTADOS INICIALES --}}
                                             @if(in_array($ot->estado, ['creada', 'en_planificacion']) && in_array(auth()->user()->role, ['admin', 'jefe_tecnico']))
                                                 <a href="{{ route('orden_trabajos.edit', $ot->id) }}" 
                                                 class="bg-amber-500 text-white px-3 py-1.5 rounded-lg text-[8px] sm:text-[10px] font-black uppercase hover:bg-amber-600 transition-all shadow-sm">
-                                                {{ $ot->estado == 'creada' ? 'Logística' : 'Revisar' }}
+                                                    {{ $ot->estado == 'creada' ? 'Logística' : 'Revisar' }}
                                                 </a>
                                             @endif
 
@@ -111,20 +135,19 @@
                                             @if($ot->estado == 'activa' && auth()->user()->role == 'tecnico')
                                                 <a href="{{ route('tecnico.show', $ot->id) }}" 
                                                 class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[8px] sm:text-[10px] font-black uppercase hover:bg-slate-900 transition-all shadow-sm">
-                                                Trabajar
+                                                    Trabajar
                                                 </a>
                                             @endif
 
-                                            {{-- 3. BOTÓN VER AVANCE: SOLO JEFE Y ADMIN --}}
+                                            {{-- 3. BOTÓN VER AVANCE: SOLO JEFE Y ADMIN EN OT ACTIVAS --}}
                                             @if($ot->estado == 'activa' && in_array(auth()->user()->role, ['admin', 'jefe_tecnico']))
                                                 <a href="{{ route('tecnico.show', $ot->id) }}" 
                                                 class="bg-slate-700 text-white px-3 py-1.5 rounded-lg text-[8px] sm:text-[10px] font-black uppercase hover:bg-slate-900 transition-all shadow-sm">
-                                                Ver Avance
+                                                    Ver Avance
                                                 </a>
                                             @endif
 
                                             {{-- 4. BOTÓN DETALLE (LUPA): SOLO JEFE Y ADMIN --}}
-                                            {{-- Quitamos al 'operador' de aquí para que no vea nada --}}
                                             @if(in_array(auth()->user()->role, ['admin', 'jefe_tecnico']))
                                                 <a href="{{ route('orden_trabajos.show', $ot->id) }}" 
                                                 class="p-1.5 sm:p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition-colors"
@@ -135,6 +158,7 @@
                                                     </svg>
                                                 </a>
                                             @endif
+
                                         </div>
                                     </td>
                                 </tr>
