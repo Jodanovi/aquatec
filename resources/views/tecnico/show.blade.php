@@ -262,71 +262,80 @@
 
         async function manejarEnvio(btn) {
             const form = btn.closest('form');
-            const tareaId = form.action.split('/').pop();
             const textarea = form.querySelector('textarea');
             const comentario = textarea.value;
 
             if (!comentario.trim()) return alert("Escribe un avance.");
 
-            // CASO 1: SIN INTERNET (Guardado Local)
+            // 1. Si no hay internet, guardamos en Dexie
             if (!navigator.onLine) {
-                try {
-                    await db.reportes.add({
-                        tarea_id: String(tareaId),
-                        comentario: comentario
-                    });
-                    
-                    btn.className = "bg-orange-500 text-white px-4 py-2 rounded-2xl text-[10px] font-black shadow-lg";
-                    btn.innerText = 'EN CELULAR';
-                    textarea.value = '';
-                    console.log("Guardado local exitoso.");
-                } catch (e) {
-                    alert("Error al guardar en el teléfono: " + e);
-                }
+                const partes = form.action.split('/');
+                const tareaId = partes[partes.length - 2]; 
+                
+                await db.reportes.add({
+                    tarea_id: String(tareaId),
+                    comentario: comentario
+                });
+                
+                btn.innerText = 'EN CELULAR';
+                textarea.value = '';
                 return;
             }
 
-            // CASO 2: CON INTERNET (Envío Directo)
+            // 2. Si hay internet, enviamos usando la URL del FORM
             btn.innerText = 'ENVIANDO...';
             btn.disabled = true;
 
-            const exito = await enviarAlServidor(tareaId, comentario);
-            
-            if (exito) {
-                // Si se guardó bien, refrescamos YA para ver el reporte en la lista
-                location.reload();
-            } else {
+            try {
+                const response = await fetch(form.action, { // <--- USAMOS LA RUTA DEL FORMULARIO
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': form.querySelector('input[name="_token"]').value, // Token del form
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ comentario: comentario })
+                });
+
+                if (response.ok) {
+                    location.reload(); // Éxito
+                } else {
+                    const errorData = await response.json();
+                    console.error("Error del servidor:", errorData);
+                    btn.innerText = 'REINTENTAR';
+                    btn.disabled = false;
+                    alert("Error: " + (errorData.message || "Sesión expirada o ruta inválida"));
+                }
+            } catch (e) {
+                console.error("Error de red:", e);
                 btn.innerText = 'REINTENTAR';
                 btn.disabled = false;
-                alert("El servidor no pudo guardar el reporte. Revisa tu conexión o sesión.");
             }
         }
 
         async function enviarAlServidor(id, texto) {
             try {
+                // Forzamos que la ruta sea absoluta empezando con /
                 const response = await fetch(`/ejecucion/reporte/${id}/guardar`, {
                     method: 'POST',
-                    // ESTA LÍNEA ES CLAVE PARA LA SESIÓN:
                     credentials: 'same-origin', 
                     body: JSON.stringify({ comentario: texto }),
                     headers: {
                         'Content-Type': 'application/json',
-                        'Accept': 'application/json', // <--- AÑADE ESTO: Le dice a Laravel que quieres una respuesta JSON
+                        'Accept': 'application/json',
                         'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
                         'X-Requested-With': 'XMLHttpRequest'
                     }
                 });
 
                 if (!response.ok) {
-                    // Si falla, el error saldrá en la consola del navegador (F12)
-                    const errorMsg = await response.text();
-                    console.error("Error detallado:", errorMsg);
                     return false;
                 }
 
                 return true;
             } catch (e) { 
-                console.error("Error de red:", e);
                 return false; 
             }
         }
