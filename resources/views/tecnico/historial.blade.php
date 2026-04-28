@@ -4,7 +4,8 @@
         <div class="bg-slate-900 text-white p-6 shadow-lg sticky top-0 z-50">
             <div class="max-w-4xl mx-auto">
                 <div class="flex items-center gap-4 mb-6">
-                    <a href="javascript:history.back()" class="text-blue-400 p-2 hover:bg-slate-800 rounded-full transition-colors">
+                    {{-- ID para el paso de Regresar --}}
+                    <a id="tour-regresar" href="javascript:history.back()" class="text-blue-400 p-2 hover:bg-slate-800 rounded-full transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                         </svg>
@@ -16,7 +17,7 @@
                     </div>
                 </div>
 
-                {{-- Buscador en tiempo real --}}
+                {{-- Buscador en tiempo real (ID: busquedaTarea) --}}
                 <div class="relative">
                     <input type="text" id="busquedaTarea" placeholder="Buscar tarea (ej: Generador, Motor...)" 
                         class="w-full bg-slate-800 border-none rounded-2xl py-3 pl-10 pr-4 text-xs font-bold text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 transition-all">
@@ -30,8 +31,9 @@
         <div class="max-w-4xl mx-auto p-4 space-y-6" id="contenedorTareas">
             @forelse($historial as $ot)
                 @foreach($ot->tareas as $tarea)
-                    {{-- Cada tarea es una "card" independiente para que el buscador pueda filtrarlas --}}
+                    {{-- ID DINÁMICO PARA EL TOUR: Solo se asigna a la primera tarea del primer bucle --}}
                     <div class="card-tarea bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden mb-4 transition-all" 
+                         @if($loop->parent->first && $loop->first) id="tour-primera-tarea" @endif
                          data-nombre="{{ strtolower($tarea->descripcion_tarea) }}">
                         
                         {{-- Info de la OT arriba de la tarea --}}
@@ -61,8 +63,9 @@
                                         </p>
                                         
                                         @if($reporte->foto_path)
-                                            {{-- Botón Ver Fotos --}}
-                                            <button onclick="toggleGaleria('galeria-{{ $reporte->id }}', event)" 
+                                            {{-- ID DINÁMICO PARA EL TOUR: Solo al primer botón de galería --}}
+                                            <button @if($loop->parent->parent->first && $loop->parent->first && $loop->first) id="tour-btn-galeria" @endif
+                                                onclick="toggleGaleria('galeria-{{ $reporte->id }}', event)" 
                                                 class="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-blue-600 transition-colors">
                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -101,9 +104,8 @@
         </div>
     </div>
 
-    {{-- Scripts --}}
+    {{-- Scripts Internos (Mantener igual) --}}
     <script>
-        // Buscador en tiempo real
         document.getElementById('busquedaTarea').addEventListener('input', function(e) {
             const term = e.target.value.toLowerCase();
             const cards = document.querySelectorAll('.card-tarea');
@@ -122,7 +124,6 @@
             document.getElementById('noResults').classList.toggle('hidden', hasResults);
         });
 
-        // Toggle de Galerías
         function toggleGaleria(id, event) {
             const galeria = document.getElementById(id);
             const boton = event.currentTarget;

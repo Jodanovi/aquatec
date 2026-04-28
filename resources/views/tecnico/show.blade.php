@@ -13,7 +13,7 @@
                     <p class="text-lg font-bold italic">{{ $ot->numero_ot }}</p>
                     
                     {{-- BOTÓN DE HISTORIAL DE UNIDAD --}}
-                    <a href="{{ route('unidades.historial', $ot->id) }}" 
+                    <a id="Historial_Unidad" href="{{ route('unidades.historial', $ot->id) }}" 
                         class="mt-2 flex items-center justify-center gap-1 text-[10px] font-black text-slate-300 uppercase hover:text-white transition-colors bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700 shadow-sm">
                             <svg class="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
@@ -33,7 +33,7 @@
             @endif
 
             {{-- Sección de Logística --}}
-            <div class="bg-blue-600 rounded-3xl p-5 text-white shadow-xl">
+            <div id="Indicaciones_Logística" class="bg-blue-600 rounded-3xl p-5 text-white shadow-xl">
                 <h3 class="text-[10px] font-black uppercase tracking-widest opacity-80 mb-2 text-blue-100">Indicaciones de Logística</h3>
                 <p class="font-medium leading-relaxed italic text-sm">
                     "{{ $ot->indicaciones->last()->indicacion ?? 'Sin indicaciones específicas.' }}"
@@ -47,13 +47,13 @@
                 @foreach($ot->tareas as $tarea)
                 <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden mb-4">
                     <div class="p-5">
-                        <div class="flex items-start justify-between gap-4 mb-4">
+                        <div id="descripcion_tarea" class="flex items-start justify-between gap-4 mb-4">
                             <h4 class="font-black text-slate-800 uppercase text-sm italic">{{ $tarea->descripcion_tarea }}</h4>
                         </div>
 
                         {{-- INDICACIONES TÉCNICAS DEL JEFE --}}
                         @if($tarea->indicaciones_tecnicas)
-                            <div class="mt-3 mb-5 p-4 bg-blue-50 border border-blue-100 rounded-2xl">
+                            <div id="Procedimiento" class="mt-3 mb-5 p-4 bg-blue-50 border border-blue-100 rounded-2xl">
                                 <div class="flex items-center gap-2 mb-1">
                                     <span class="text-[9px] font-black text-blue-600 uppercase tracking-widest">Procedimiento a seguir:</span>
                                 </div>
@@ -126,7 +126,7 @@
 
                         {{-- VALIDACIÓN PROFESIONAL (Admin/Jefe) --}}
                         @if(auth()->user()->role !== 'tecnico')
-                            <div class="mb-6 p-4 rounded-2xl border-2 {{ $tarea->validacion_profesional ? 'border-blue-500 bg-blue-50' : 'border-dashed border-slate-200 bg-slate-50' }}">
+                            <div id="Corrección_Técnica" class="mb-6 p-4 rounded-2xl border-2 {{ $tarea->validacion_profesional ? 'border-blue-500 bg-blue-50' : 'border-dashed border-slate-200 bg-slate-50' }}">
                                 <div class="flex justify-between items-center mb-3">
                                     <div class="flex items-center gap-2">
                                         <div class="{{ $tarea->validacion_profesional ? 'bg-blue-600' : 'bg-slate-400' }} p-1.5 rounded-lg text-white">
@@ -164,14 +164,14 @@
                         @if($ot->estado == 'activa')
                             <form action="{{ route('tecnico.reporte.guardar', $tarea->id) }}" method="POST" enctype="multipart/form-data" class="mt-4 space-y-4">
                                 @csrf
-                                <textarea name="comentario" required rows="2" class="w-full border-slate-200 rounded-2xl text-xs p-3 bg-slate-50 focus:ring-blue-500" placeholder="Escribe un avance..."></textarea>
+                                <textarea id="reporte_tecnico" name="comentario" required rows="2" class="w-full border-slate-200 rounded-2xl text-xs p-3 bg-slate-50 focus:ring-blue-500" placeholder="Escribe un avance..."></textarea>
                                 <div class="flex gap-2">
-                                    <label class="btn-foto-nueva-{{ $tarea->id }} flex-1 bg-white border-2 border-dashed border-slate-200 rounded-2xl flex items-center justify-center gap-2 py-3 cursor-pointer transition-all hover:bg-slate-50">
+                                    <label id="Fotos" class="btn-foto-nueva-{{ $tarea->id }} flex-1 bg-white border-2 border-dashed border-slate-200 rounded-2xl flex items-center justify-center gap-2 py-3 cursor-pointer transition-all hover:bg-slate-50">
                                         <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                                         <span class="txt-foto-nueva-{{ $tarea->id }} text-[10px] font-black uppercase text-slate-400">Fotos</span>
                                         <input type="file" name="fotos[]" multiple accept="image/*" class="hidden" onchange="actualizarLabelFoto(this, '{{ $tarea->id }}')">
                                     </label>
-                                    <button type="submit" class="bg-blue-600 text-white px-6 rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-blue-200">Enviar</button>
+                                    <button id="enviar_reporte" type="submit" class="bg-blue-600 text-white px-6 rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-blue-200">Enviar</button>
                                 </div>
                             </form>
                         @endif
@@ -185,11 +185,11 @@
             <div class="mt-12 bg-slate-900 rounded-3xl p-8 border border-blue-500/30 shadow-2xl">
                 <form action="{{ route('orden_trabajos.finalizar', $ot->id) }}" method="POST">
                     @csrf @method('PATCH')
-                    <div class="mb-6">
+                    <div id="Dictamen_Final" class="mb-6">
                         <label class="block text-blue-400 text-[10px] font-black uppercase mb-2">Dictamen Final</label>
                         <textarea name="conclusion_jefe" rows="4" required class="w-full bg-slate-800 border-slate-700 rounded-2xl text-white text-xs" placeholder="Escriba la validación final..."></textarea>
                     </div>
-                    <button type="submit" onclick="return confirm('¿Bloquear esta OT definitivamente?')" class="w-full bg-blue-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-blue-900/50">
+                    <button id="Finalizar_Orden" type="submit" onclick="return confirm('¿Bloquear esta OT definitivamente?')" class="w-full bg-blue-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-blue-900/50">
                         Finalizar y Cerrar Orden
                     </button>
                 </form>
@@ -249,5 +249,48 @@
                 text.innerText = input.files.length + ' Foto(s) lista(s)';
             }
         }
+    </script>
+    {{-- LÓGICA DE BASE DE DATOS LOCAL Y OFFLINE --}}
+    <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+    <script>
+        // 1. Inicializar la Base de Datos Local
+        const db = new Dexie("AquatecOffline");
+        db.version(1).stores({
+            reportes: '++id, tarea_id, comentario, sincronizado'
+        });
+
+        // 2. Interceptar el envío de reportes
+        document.querySelectorAll('form[action*="reporte/guardar"]').forEach(form => {
+            form.addEventListener('submit', async function(e) {
+                // Si no hay internet, manejamos el guardado local
+                if (!navigator.onLine) {
+                    e.preventDefault(); // Detener el envío normal al servidor
+
+                    const formData = new FormData(this);
+                    const tareaId = this.action.split('/').pop(); // Obtenemos el ID de la tarea desde la URL
+                    
+                    try {
+                        await db.reportes.add({
+                            tarea_id: tareaId,
+                            comentario: formData.get('comentario'),
+                            fecha: new Date().toISOString(),
+                            sincronizado: 0 // Marcamos que está pendiente
+                        });
+
+                        alert('⚠️ Sin conexión. El reporte se guardó en tu celular y se enviará cuando recuperes señal.');
+                        this.reset(); // Limpiamos el formulario
+                        
+                        // Opcional: Cambiar el color del botón para indicar que hay algo pendiente
+                        const btn = this.querySelector('button[type="submit"]');
+                        btn.classList.replace('bg-blue-600', 'bg-orange-500');
+                        btn.innerText = 'Pendiente Sync';
+                    } catch (err) {
+                        console.error("Error en IndexedDB:", err);
+                    }
+                }
+            });
+        });
+
+        console.log("🚀 Sistema de reportes offline de Aquatec listo.");
     </script>
 </x-app-layout>

@@ -35,8 +35,11 @@
                         <div>
                             <label class="block text-[10px] font-black text-gray-400 uppercase mb-2">5. Permiso Fecha Vigencia</label>
                             <div class="flex items-center gap-4 bg-gray-50 p-2 rounded-xl border border-gray-200">
-                                <input type="date" name="permiso_fecha_vigencia" class="border-none bg-transparent font-bold focus:ring-0">
-                                <label class="flex items-center gap-2 cursor-pointer border-l pl-4 border-gray-300">
+                                <div id="tour-fecha" class="flex-1">
+                                    <input type="date" name="permiso_fecha_vigencia" class="w-full border-none bg-transparent font-bold focus:ring-0">
+                                </div>
+                                
+                                <label id="tour-negociable" class="flex items-center gap-2 cursor-pointer border-l pl-4 border-gray-300">
                                     <input type="checkbox" name="permiso_negociable" class="rounded text-blue-600 focus:ring-blue-500">
                                     <span class="text-[9px] font-black uppercase text-gray-500">¿Negociable?</span>
                                 </label>

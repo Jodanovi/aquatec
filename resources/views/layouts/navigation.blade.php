@@ -75,10 +75,11 @@
                     {{ __('Dashboard') }}
                 </x-responsive-nav-link>
             @endif
-            
+           @if(!auth()->user()->hasRole('operador'))
             <x-responsive-nav-link :href="route('tecnico.index')" :active="request()->routeIs('tecnico.index')">
                 {{ __('OT Activas') }}
             </x-responsive-nav-link>
+            @endif
         </div>
 
         <div class="pt-4 pb-1 border-t border-gray-200">
