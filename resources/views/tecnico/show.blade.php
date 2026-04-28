@@ -361,4 +361,5 @@
             setTimeout(sincronizarReportesPendientes, 2000);
         });
     </script>
+    
 </x-app-layout>
