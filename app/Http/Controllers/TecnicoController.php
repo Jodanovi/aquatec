@@ -44,7 +44,7 @@ class TecnicoController extends Controller
 
         $reporte = new OtTareaReporte();
         $reporte->ot_tarea_id = $tarea->id; 
-        $reporte->user_id = Auth::id();
+        $reporte->user_id = Auth::id() ?? 1; // Un pequeño respaldo por si se pierde la sesión
         $reporte->comentario = $request->comentario;
         
         if (!empty($rutas)) {
@@ -53,9 +53,16 @@ class TecnicoController extends Controller
         
         $reporte->save();
 
-        // Opcional: Si el formulario envía que la tarea está lista, podrías marcarla aquí
         if ($request->has('finalizar_tarea')) {
             $tarea->update(['estado' => 'finalizada']);
+        }
+
+        // --- ESTO ES LO QUE ARREGLA EL BUCLE ---
+        if ($request->expectsJson() || $request->isJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Reporte sincronizado con éxito'
+            ], 200);
         }
 
         return redirect()->back()->with('success', 'Reporte guardado con éxito.');
