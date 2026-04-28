@@ -250,10 +250,9 @@
             }
         }
     </script>
-    {{-- LÓGICA DE ENVÍO SILENCIOSO, OFFLINE Y AUTO-SYNC (VERSIÓN DEFINITIVA) --}}
+    {{-- LÓGICA DE ENVÍO SILENCIOSO, OFFLINE Y AUTO-SYNC (VERSIÓN CORREGIDA) --}}
     <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
     <script>
-        // 1. Configuración de la Base de Datos Local
         var db = new Dexie("AquatecDB");
         db.version(1).stores({
             reportes: '++id, tarea_id, comentario'
@@ -261,7 +260,6 @@
 
         let estaSincronizando = false;
 
-        // 2. Función al presionar el botón de enviar
         async function manejarEnvio(btn) {
             const form = btn.closest('form');
             const tareaId = form.action.split('/').pop();
@@ -270,7 +268,7 @@
 
             if (!comentario.trim()) return alert("Escribe un avance.");
 
-            // Si no hay internet, guardamos localmente
+            // CASO 1: SIN INTERNET (Guardado Local)
             if (!navigator.onLine) {
                 try {
                     await db.reportes.add({
@@ -278,11 +276,9 @@
                         comentario: comentario
                     });
                     
-                    // Cambiamos el botón para dar feedback visual
                     btn.className = "bg-orange-500 text-white px-4 py-2 rounded-2xl text-[10px] font-black shadow-lg";
                     btn.innerText = 'EN CELULAR';
-                    textarea.value = ''; // Limpiamos para que parezca enviado
-                    
+                    textarea.value = '';
                     console.log("Guardado local exitoso.");
                 } catch (e) {
                     alert("Error al guardar en el teléfono: " + e);
@@ -290,11 +286,22 @@
                 return;
             }
 
-            // Si hay internet, enviamos normal
-            enviarAlServidor(tareaId, comentario, btn, textarea);
+            // CASO 2: CON INTERNET (Envío Directo)
+            btn.innerText = 'ENVIANDO...';
+            btn.disabled = true;
+
+            const exito = await enviarAlServidor(tareaId, comentario);
+            
+            if (exito) {
+                // Si se guardó bien, refrescamos YA para ver el reporte en la lista
+                location.reload();
+            } else {
+                btn.innerText = 'REINTENTAR';
+                btn.disabled = false;
+                alert("El servidor no pudo guardar el reporte. Revisa tu conexión o sesión.");
+            }
         }
 
-        // 3. Comunicación con el servidor Laravel
         async function enviarAlServidor(id, texto) {
             try {
                 const response = await fetch(`/ejecucion/reporte/${id}/guardar`, {
@@ -308,11 +315,8 @@
                 });
 
                 if (!response.ok) {
-                    // ESTO NOS DIRÁ EL ERROR REAL
                     const errorMsg = await response.text();
                     console.error("Error servidor:", errorMsg);
-                    // Si quieres ver el error en el cel, quita las barras de la línea de abajo:
-                    // alert("Error del servidor: " + response.status); 
                     return false;
                 }
 
@@ -323,9 +327,8 @@
             }
         }
 
-        // 4. Sincronización Automática Inteligente
+        // AUTO-SYNC: Solo para lo que se quedó "atrapado" cuando no había señal
         async function autoSync() {
-            // Si ya se está sincronizando o no hay internet, no hacemos nada
             if (estaSincronizando || !navigator.onLine) return;
             
             const pendientes = await db.reportes.toArray();
@@ -334,13 +337,9 @@
             estaSincronizando = true;
             let algunExitoReal = false;
 
-            console.log("Intentando sincronizar reportes pendientes...");
-
             for (const r of pendientes) {
                 const exito = await enviarAlServidor(r.tarea_id, r.comentario);
-                
                 if (exito) {
-                    // Solo si el servidor confirmó, lo borramos del celular
                     await db.reportes.delete(r.id);
                     algunExitoReal = true;
                 }
@@ -348,18 +347,13 @@
             
             estaSincronizando = false;
 
-            // SOLO refresca la pantalla si al menos un reporte se guardó de verdad en el servidor
-            // Esto evita el refresco molesto si el servidor sigue rechazando los datos
             if (algunExitoReal) {
                 location.reload(); 
             }
         }
 
-        // Revisar cada 10 segundos y al recuperar conexión
         setInterval(autoSync, 10000);
         window.addEventListener('online', autoSync);
-        
-        // También revisar cuando el técnico vuelve a abrir la pestaña
         window.addEventListener('focus', autoSync);
     </script>
 
