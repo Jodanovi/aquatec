@@ -28,54 +28,57 @@ class TecnicoController extends Controller
 
     public function guardarReporte(Request $request, $tareaId)
     {
-        // 1. Validar: Si es JSON (PWA), extraemos el comentario manualmente si es necesario
-        $comentario = $request->isJson() 
-            ? $request->json('comentario') 
-            : $request->input('comentario');
+        try {
+            // 1. Extraer comentario de JSON o Formulario
+            $comentario = $request->isJson() ? $request->json('comentario') : $request->input('comentario');
 
-        // Forzamos la validación manual si el validate() normal falla con JSON
-        if (!$comentario) {
-            return response()->json(['error' => 'El comentario es obligatorio'], 422);
-        }
-
-        $tarea = OtTarea::findOrFail($tareaId);
-        $rutas = [];
-
-        // Manejo de fotos (solo funciona cuando hay internet directo)
-        if ($request->hasFile('fotos')) {
-            foreach ($request->file('fotos') as $foto) {
-                $rutas[] = $foto->store('reportes', 'public');
+            if (empty($comentario)) {
+                return response()->json(['success' => false, 'error' => 'Comentario vacío'], 422);
             }
-        }
 
-        // 2. Crear el reporte
-        $reporte = new OtTareaReporte();
-        $reporte->ot_tarea_id = $tarea->id; 
-        
-        // Asignamos el usuario (técnico) - Importante: Auth::id() puede ser null en sync
-        $reporte->user_id = Auth::id() ?? 1; 
-        $reporte->comentario = $comentario;
-        
-        if (!empty($rutas)) {
-            $reporte->foto_path = implode(',', $rutas); 
-        }
-        
-        $reporte->save();
+            // 2. Buscar tarea
+            $tarea = OtTarea::findOrFail($tareaId);
 
-        // 3. Finalizar tarea si se solicita
-        if ($request->has('finalizar_tarea')) {
-            $tarea->update(['estado' => 'finalizada']);
-        }
+            // 3. Crear el reporte con usuario de respaldo
+            $reporte = new OtTareaReporte();
+            $reporte->ot_tarea_id = $tarea->id;
+            
+            // Buscamos un técnico si la sesión Auth expiró (ID 1 suele ser el Admin o primer técnico)
+            $reporte->user_id = Auth::id() ?? 1; 
+            $reporte->comentario = $comentario;
+            
+            // Guardar fotos si existen (solo en envío online directo)
+            if ($request->hasFile('fotos')) {
+                $rutas = [];
+                foreach ($request->file('fotos') as $foto) {
+                    $rutas[] = $foto->store('reportes', 'public');
+                }
+                $reporte->foto_path = implode(',', $rutas);
+            }
+            
+            $reporte->save();
 
-        // 4. RESPUESTA HÍBRIDA (PWA vs WEB)
-        if ($request->expectsJson() || $request->isJson()) {
+            if ($request->has('finalizar_tarea')) {
+                $tarea->update(['estado' => 'finalizada']);
+            }
+
+            // 4. Respuesta para la PWA
+            if ($request->expectsJson() || $request->isJson()) {
+                return response()->json([
+                    'success' => true,
+                    'id_generado' => $reporte->id
+                ], 200);
+            }
+
+            return redirect()->back()->with('success', 'Reporte guardado.');
+
+        } catch (\Exception $e) {
+            // Si algo falla, enviamos error para que el celular NO borre el reporte naranja
             return response()->json([
-                'success' => true,
-                'message' => 'Reporte sincronizado con éxito'
-            ], 200);
+                'success' => false, 
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        return redirect()->back()->with('success', 'Reporte guardado con éxito.');
     }
 
     public function actualizarReporte(Request $request, $id)
