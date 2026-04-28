@@ -277,6 +277,7 @@
                     comentario: comentario
                 });
                 
+                btn.className = "bg-orange-500 text-white px-6 rounded-2xl text-[10px] font-black uppercase shadow-lg";
                 btn.innerText = 'EN CELULAR';
                 textarea.value = '';
                 return;
@@ -340,7 +341,6 @@
             }
         }
 
-        // AUTO-SYNC: Solo para lo que se quedó "atrapado" cuando no había señal
         async function autoSync() {
             if (estaSincronizando || !navigator.onLine) return;
             
@@ -351,7 +351,14 @@
             let algunExitoReal = false;
 
             for (const r of pendientes) {
-                const exito = await enviarAlServidor(r.tarea_id, r.comentario);
+                // IMPORTANTE: Buscamos el formulario de esa tarea específica para tener su URL correcta
+                const formTarea = document.querySelector(`form[action*="/reporte/${r.tarea_id}/guardar"]`);
+                const urlDestino = formTarea ? formTarea.action : `/ejecucion/reporte/${r.tarea_id}/guardar`;
+
+                console.log("Sincronizando automáticamente tarea:", r.tarea_id);
+                
+                const exito = await enviarAlServidor(urlDestino, r.comentario);
+                
                 if (exito) {
                     await db.reportes.delete(r.id);
                     algunExitoReal = true;
@@ -361,6 +368,7 @@
             estaSincronizando = false;
 
             if (algunExitoReal) {
+                console.log("Sincronización completa. Recargando...");
                 location.reload(); 
             }
         }
@@ -368,6 +376,34 @@
         setInterval(autoSync, 10000);
         window.addEventListener('online', autoSync);
         window.addEventListener('focus', autoSync);
+
+        // --- PEGA EL PUNTO 3 AQUÍ (ANTES DEL CIERRE DEL SCRIPT) ---
+        async function marcarPendientesAlCargar() {
+            try {
+                const pendientes = await db.reportes.toArray();
+                pendientes.forEach(p => {
+                    // Busca el formulario que contiene el ID de la tarea pendiente
+                    const form = document.querySelector(`form[action*="/reporte/${p.tarea_id}/guardar"]`);
+                    if (form) {
+                        const btn = form.querySelector('#enviar_reporte'); // Usamos el ID del botón
+                        const textarea = form.querySelector('textarea');
+                        
+                        if (btn) {
+                            btn.className = "bg-orange-500 text-white px-6 rounded-2xl text-[10px] font-black uppercase shadow-lg";
+                            btn.innerText = 'PENDIENTE';
+                        }
+                        if (textarea) {
+                            textarea.value = p.comentario;
+                        }
+                    }
+                });
+            } catch (e) {
+                console.error("Error al marcar pendientes:", e);
+            }
+        }
+
+        // Llamamos a la función inmediatamente al cargar la página
+        marcarPendientesAlCargar();
     </script>
 
 </x-app-layout>
