@@ -28,24 +28,33 @@ class TecnicoController extends Controller
 
     public function guardarReporte(Request $request, $tareaId)
     {
-        $request->validate([
-            'comentario' => 'required|string|max:1000',
-            'fotos.*' => 'image|mimes:jpeg,png,jpg|max:4096', 
-        ]);
+        // 1. Validar: Si es JSON (PWA), extraemos el comentario manualmente si es necesario
+        $comentario = $request->isJson() 
+            ? $request->json('comentario') 
+            : $request->input('comentario');
+
+        // Forzamos la validación manual si el validate() normal falla con JSON
+        if (!$comentario) {
+            return response()->json(['error' => 'El comentario es obligatorio'], 422);
+        }
 
         $tarea = OtTarea::findOrFail($tareaId);
         $rutas = [];
 
+        // Manejo de fotos (solo funciona cuando hay internet directo)
         if ($request->hasFile('fotos')) {
             foreach ($request->file('fotos') as $foto) {
                 $rutas[] = $foto->store('reportes', 'public');
             }
         }
 
+        // 2. Crear el reporte
         $reporte = new OtTareaReporte();
         $reporte->ot_tarea_id = $tarea->id; 
-        $reporte->user_id = Auth::id() ?? 1; // Un pequeño respaldo por si se pierde la sesión
-        $reporte->comentario = $request->comentario;
+        
+        // Asignamos el usuario (técnico) - Importante: Auth::id() puede ser null en sync
+        $reporte->user_id = Auth::id() ?? 1; 
+        $reporte->comentario = $comentario;
         
         if (!empty($rutas)) {
             $reporte->foto_path = implode(',', $rutas); 
@@ -53,11 +62,12 @@ class TecnicoController extends Controller
         
         $reporte->save();
 
+        // 3. Finalizar tarea si se solicita
         if ($request->has('finalizar_tarea')) {
             $tarea->update(['estado' => 'finalizada']);
         }
 
-        // --- ESTO ES LO QUE ARREGLA EL BUCLE ---
+        // 4. RESPUESTA HÍBRIDA (PWA vs WEB)
         if ($request->expectsJson() || $request->isJson()) {
             return response()->json([
                 'success' => true,
