@@ -93,7 +93,7 @@
 
                                     <div class="text-[10px] flex flex-col text-slate-400 mb-2 pr-16 space-y-0.5">
                                         <div class="flex justify-between">
-                                            <span class="font-bold uppercase text-blue-600">Reporte de: {{ $reporte->tecnico->name ?? 'Técnico' }}</span>
+                                            <span class="font-bold uppercase text-blue-600">Reporte de: {{ $reporte->tecnico->name ?? 'Admin (Sincronizado)' }}</span>
                                             <span>{{ $reporte->created_at->format('d/m/Y H:i') }}</span>
                                         </div>
                                     </div>
@@ -306,6 +306,8 @@
             try {
                 const response = await fetch(`/ejecucion/reporte/${id}/guardar`, {
                     method: 'POST',
+                    // ESTA LÍNEA ES CLAVE PARA LA SESIÓN:
+                    credentials: 'same-origin', 
                     body: JSON.stringify({ comentario: texto }),
                     headers: {
                         'Content-Type': 'application/json',
@@ -315,8 +317,9 @@
                 });
 
                 if (!response.ok) {
+                    // Si falla, el error saldrá en la consola del navegador (F12)
                     const errorMsg = await response.text();
-                    console.error("Error servidor:", errorMsg);
+                    console.error("Error detallado:", errorMsg);
                     return false;
                 }
 

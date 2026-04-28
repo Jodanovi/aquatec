@@ -44,7 +44,14 @@ class TecnicoController extends Controller
             $reporte->ot_tarea_id = $tarea->id;
             
             // Buscamos un técnico si la sesión Auth expiró (ID 1 suele ser el Admin o primer técnico)
-            $reporte->user_id = Auth::id() ?? 1; 
+            // Por esto (Para debuggear):
+            if (Auth::check()) {
+                $reporte->user_id = Auth::id();
+            } else {
+                // Si entra aquí, es que Laravel NO te está reconociendo la sesión
+                // Asegúrate de que el usuario ID 1 exista en tu base de datos de Railway
+                $reporte->user_id = 1; 
+            } 
             $reporte->comentario = $comentario;
             
             // Guardar fotos si existen (solo en envío online directo)
