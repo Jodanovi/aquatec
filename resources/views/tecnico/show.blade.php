@@ -252,123 +252,85 @@
     </script>
     {{-- LÓGICA DE ENVÍO SILENCIOSO, OFFLINE Y AUTO-SYNC (VERSIÓN INMORTAL) --}}
     <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+    <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
     <script>
-        const db = new Dexie("AquatecOffline");
+        // Definición robusta de la DB
+        var db = new Dexie("AquatecDB");
         db.version(1).stores({
-            reportes: '++id, tarea_id, comentario, sincronizado'
+            reportes: '++id, tarea_id, comentario'
         });
 
         let estaSincronizando = false;
 
         async function manejarEnvio(btn) {
             const form = btn.closest('form');
-            const formData = new FormData(form);
             const tareaId = form.action.split('/').pop();
-            const comentario = formData.get('comentario');
+            const textarea = form.querySelector('textarea');
+            const comentario = textarea.value;
 
-            if (!comentario.trim()) {
-                alert("Escribe un avance primero.");
-                return;
-            }
+            if (!comentario.trim()) return alert("Escribe un avance.");
 
             if (!navigator.onLine) {
-                await db.reportes.add({
-                    tarea_id: tareaId,
-                    comentario: comentario,
-                    fecha: new Date().toISOString(),
-                    sincronizado: 0
-                });
-
-                btn.classList.remove('bg-blue-600');
-                btn.classList.add('bg-orange-500');
-                btn.innerText = 'Guardado Local';
-                form.reset();
-                alert('⚠️ Guardado en el celular. Se subirá solo al recuperar señal.');
+                // GUARDADO LOCAL
+                try {
+                    await db.reportes.add({
+                        tarea_id: String(tareaId),
+                        comentario: comentario
+                    });
+                    
+                    btn.className = "bg-orange-500 text-white px-4 py-2 rounded-2xl text-[10px] font-black shadow-lg";
+                    btn.innerText = 'EN CELULAR';
+                    textarea.value = '';
+                    alert('✅ Guardado en el teléfono (Sin señal). No refresques la página.');
+                } catch (e) {
+                    alert("Error al guardar en el celular: " + e);
+                }
                 return;
             }
 
-            btn.innerText = 'Enviando...';
-            btn.disabled = true;
-
-            try {
-                const response = await fetch(form.action, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
-                        'Accept': 'application/json'
-                    }
-                });
-
-                if (response.ok) {
-                    btn.innerText = '¡Enviado!';
-                    btn.classList.replace('bg-blue-600', 'bg-green-600');
-                    form.reset();
-                    setTimeout(() => { location.reload(); }, 1500);
-                }
-            } catch (err) {
-                btn.disabled = false;
-                btn.innerText = 'Error';
-            }
+            // ENVÍO NORMAL (Si hay internet)
+            enviarAlServidor(tareaId, comentario, btn, textarea);
         }
 
-        async function sincronizarReportesPendientes() {
-            if (estaSincronizando || !navigator.onLine) return;
+        async function enviarAlServidor(id, texto) {
+            try {
+                const response = await fetch(`/ejecucion/reporte/${id}/guardar`, {
+                    method: 'POST',
+                    body: JSON.stringify({ comentario: texto }),
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+                return response.ok;
+            } catch (e) { return false; }
+        }
 
+        async function autoSync() {
+            if (estaSincronizando || !navigator.onLine) return;
+            
             const pendientes = await db.reportes.toArray();
             if (pendientes.length === 0) return;
 
             estaSincronizando = true;
-            
-            // Usamos la URL completa para evitar errores de carpetas
-            const baseUrl = window.location.origin; 
-            const token = document.querySelector('input[name="_token"]').value;
+            console.log("Sincronizando...");
 
-            let exitos = 0;
-            for (const reporte of pendientes) {
-                const formData = new FormData();
-                formData.append('comentario', reporte.comentario);
-                formData.append('_token', token);
-
-                try {
-                    const response = await fetch(`${baseUrl}/ejecucion/reporte/${reporte.tarea_id}/guardar`, {
-                        method: 'POST',
-                        body: formData,
-                        headers: { 'Accept': 'application/json' }
-                    });
-
-                    if (response.ok) {
-                        await db.reportes.delete(reporte.id);
-                        exitos++;
-                    }
-                } catch (err) {
-                    console.error("Fallo reporte:", reporte.id);
+            for (const r of pendientes) {
+                const exito = await enviarAlServidor(r.tarea_id, r.comentario);
+                if (exito) {
+                    await db.reportes.delete(r.id);
                 }
             }
-
-            if (exitos > 0) {
-                alert(`✅ Aquatec: Se enviaron ${exitos} reportes pendientes.`);
-                location.reload(); 
-            }
+            
+            alert("✅ ¡Reportes sincronizados con el servidor!");
+            location.reload();
             estaSincronizando = false;
         }
 
-        // --- DISPARADORES DE SEGURIDAD ---
-        
-        // 1. Cuando vuelve el internet
-        window.addEventListener('online', sincronizarReportesPendientes);
-
-        // 2. Al cargar la página
-        window.addEventListener('load', () => {
-            setTimeout(sincronizarReportesPendientes, 3000);
-        });
-
-        // 3. Cuando el usuario vuelve a ver la app
-        window.addEventListener('focus', sincronizarReportesPendientes);
-
-        // 4. CADA 10 SEGUNDOS (Por si todo lo anterior falla)
-        setInterval(sincronizarReportesPendientes, 10000);
-
+        // Revisión cada 5 segundos
+        setInterval(autoSync, 5000);
+        window.addEventListener('online', autoSync);
     </script>
 
 </x-app-layout>
