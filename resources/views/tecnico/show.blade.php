@@ -250,14 +250,16 @@
             }
         }
     </script>
-    {{-- LÓGICA DE ENVÍO SILENCIOSO Y OFFLINE --}}
+    {{-- LÓGICA DE ENVÍO SILENCIOSO, OFFLINE Y AUTO-SYNC --}}
     <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
     <script>
+        // 1. Configuración de la base de datos local
         const db = new Dexie("AquatecOffline");
         db.version(1).stores({
             reportes: '++id, tarea_id, comentario, sincronizado'
         });
 
+        // 2. Función principal del botón Enviar
         async function manejarEnvio(btn) {
             const form = btn.closest('form');
             const formData = new FormData(form);
@@ -278,10 +280,11 @@
                     sincronizado: 0
                 });
 
-                btn.classList.replace('bg-blue-600', 'bg-orange-500');
+                btn.classList.remove('bg-blue-600');
+                btn.classList.add('bg-orange-500');
                 btn.innerText = 'Guardado Local';
                 form.reset();
-                alert('⚠️ Estás offline. Guardado en el celular.');
+                alert('⚠️ Estás offline. El reporte se guardó en el celular y se subirá solo cuando recuperes señal.');
                 return;
             }
 
@@ -310,6 +313,49 @@
                 btn.innerText = 'Error';
                 console.error(err);
             }
+        }
+
+        // 3. Lógica de Sincronización Automática
+        async function sincronizarReportesPendientes() {
+            const pendientes = await db.reportes.where('sincronizado').equals(0).toArray();
+
+            if (pendientes.length === 0) return;
+
+            console.log(`Intentando sincronizar ${pendientes.length} reportes...`);
+
+            for (const reporte of pendientes) {
+                const formData = new FormData();
+                formData.append('comentario', reporte.comentario);
+                formData.append('_token', document.querySelector('input[name="_token"]').value);
+
+                try {
+                    const response = await fetch(`/ejecucion/reporte/${reporte.tarea_id}/guardar`, {
+                        method: 'POST',
+                        body: formData,
+                        headers: { 'Accept': 'application/json' }
+                    });
+
+                    if (response.ok) {
+                        await db.reportes.delete(reporte.id);
+                        console.log("Reporte sincronizado y borrado de local.");
+                    }
+                } catch (err) {
+                    console.error("Fallo al sincronizar un reporte, se intentará luego.", err);
+                }
+            }
+
+            alert("✅ ¡Conexión recuperada! Tus reportes pendientes se han sincronizado con éxito.");
+            location.reload();
+        }
+
+        // 4. Detectar cuando vuelve el internet
+        window.addEventListener('online', () => {
+            sincronizarReportesPendientes();
+        });
+
+        // 5. Revisar si hay pendientes al cargar la página (por si acaso)
+        if (navigator.onLine) {
+            sincronizarReportesPendientes();
         }
     </script>
 </x-app-layout>
