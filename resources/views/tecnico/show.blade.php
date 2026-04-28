@@ -250,16 +250,17 @@
             }
         }
     </script>
-    {{-- LÓGICA DE ENVÍO SILENCIOSO, OFFLINE Y AUTO-SYNC --}}
+    {{-- LÓGICA DE ENVÍO SILENCIOSO, OFFLINE Y AUTO-SYNC (VERSIÓN SIN BUCLE) --}}
     <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
     <script>
-        // 1. Configuración de la base de datos local
         const db = new Dexie("AquatecOffline");
         db.version(1).stores({
             reportes: '++id, tarea_id, comentario, sincronizado'
         });
 
-        // 2. Función principal del botón Enviar
+        // Variable para evitar bucles de sincronización
+        let estaSincronizando = false;
+
         async function manejarEnvio(btn) {
             const form = btn.closest('form');
             const formData = new FormData(form);
@@ -271,7 +272,6 @@
                 return;
             }
 
-            // --- ESCENARIO: SIN CONEXIÓN ---
             if (!navigator.onLine) {
                 await db.reportes.add({
                     tarea_id: tareaId,
@@ -284,11 +284,10 @@
                 btn.classList.add('bg-orange-500');
                 btn.innerText = 'Guardado Local';
                 form.reset();
-                alert('⚠️ Estás offline. El reporte se guardó en el celular y se subirá solo cuando recuperes señal.');
+                alert('⚠️ Estás offline. Guardado en el celular.');
                 return;
             }
 
-            // --- ESCENARIO: CON CONEXIÓN ---
             btn.innerText = 'Enviando...';
             btn.disabled = true;
 
@@ -311,18 +310,20 @@
             } catch (err) {
                 btn.disabled = false;
                 btn.innerText = 'Error';
-                console.error(err);
             }
         }
 
-        // 3. Lógica de Sincronización Automática
         async function sincronizarReportesPendientes() {
-            const pendientes = await db.reportes.where('sincronizado').equals(0).toArray();
+            // Si ya se está sincronizando o estamos offline, no hacer nada
+            if (estaSincronizando || !navigator.onLine) return;
 
+            const pendientes = await db.reportes.where('sincronizado').equals(0).toArray();
             if (pendientes.length === 0) return;
 
-            console.log(`Intentando sincronizar ${pendientes.length} reportes...`);
+            estaSincronizando = true; // Bloqueamos nuevas ejecuciones
+            console.log(`Sincronizando ${pendientes.length} reportes...`);
 
+            let exitos = 0;
             for (const reporte of pendientes) {
                 const formData = new FormData();
                 formData.append('comentario', reporte.comentario);
@@ -337,25 +338,27 @@
 
                     if (response.ok) {
                         await db.reportes.delete(reporte.id);
-                        console.log("Reporte sincronizado y borrado de local.");
+                        exitos++;
                     }
                 } catch (err) {
-                    console.error("Fallo al sincronizar un reporte, se intentará luego.", err);
+                    console.error("Error en uno de los reportes:", err);
                 }
             }
 
-            alert("✅ ¡Conexión recuperada! Tus reportes pendientes se han sincronizado con éxito.");
-            location.reload();
+            if (exitos > 0) {
+                alert(`✅ Se han sincronizado ${exitos} reporte(s) pendiente(s).`);
+                location.reload(); 
+            }
+            
+            estaSincronizando = false;
         }
 
-        // 4. Detectar cuando vuelve el internet
-        window.addEventListener('online', () => {
-            sincronizarReportesPendientes();
+        // Detectar cambios de conexión
+        window.addEventListener('online', sincronizarReportesPendientes);
+
+        // Ejecutar al cargar la página pero con un pequeño retraso
+        window.addEventListener('load', () => {
+            setTimeout(sincronizarReportesPendientes, 2000);
         });
-
-        // 5. Revisar si hay pendientes al cargar la página (por si acaso)
-        if (navigator.onLine) {
-            sincronizarReportesPendientes();
-        }
     </script>
 </x-app-layout>
