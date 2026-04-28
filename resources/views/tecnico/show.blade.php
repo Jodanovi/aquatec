@@ -250,17 +250,18 @@
             }
         }
     </script>
-    {{-- LÓGICA DE ENVÍO SILENCIOSO, OFFLINE Y AUTO-SYNC (VERSIÓN SIN BUCLE) --}}
+    {{-- LÓGICA DE ENVÍO SILENCIOSO, OFFLINE Y AUTO-SYNC (VERSIÓN ROBUSTA) --}}
     <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
     <script>
+        // 1. Configuración de la base de datos local
         const db = new Dexie("AquatecOffline");
         db.version(1).stores({
             reportes: '++id, tarea_id, comentario, sincronizado'
         });
 
-        // Variable para evitar bucles de sincronización
         let estaSincronizando = false;
 
+        // 2. Función principal del botón Enviar
         async function manejarEnvio(btn) {
             const form = btn.closest('form');
             const formData = new FormData(form);
@@ -272,22 +273,31 @@
                 return;
             }
 
+            // --- ESCENARIO: SIN CONEXIÓN ---
             if (!navigator.onLine) {
-                await db.reportes.add({
-                    tarea_id: tareaId,
-                    comentario: comentario,
-                    fecha: new Date().toISOString(),
-                    sincronizado: 0
-                });
+                try {
+                    await db.reportes.add({
+                        tarea_id: tareaId,
+                        comentario: comentario,
+                        fecha: new Date().toISOString(),
+                        sincronizado: 0
+                    });
 
-                btn.classList.remove('bg-blue-600');
-                btn.classList.add('bg-orange-500');
-                btn.innerText = 'Guardado Local';
-                form.reset();
-                alert('⚠️ Estás offline. Guardado en el celular.');
+                    // Feedback visual en el botón
+                    btn.classList.remove('bg-blue-600');
+                    btn.classList.add('bg-orange-500');
+                    btn.innerText = 'Guardado Local';
+                    
+                    form.reset();
+                    alert('⚠️ Estás offline. El reporte se guardó en el celular.');
+                } catch (e) {
+                    console.error("Error al guardar en Dexie:", e);
+                    alert("Error crítico al guardar localmente.");
+                }
                 return;
             }
 
+            // --- ESCENARIO: CON CONEXIÓN ---
             btn.innerText = 'Enviando...';
             btn.disabled = true;
 
@@ -306,28 +316,35 @@
                     btn.classList.replace('bg-blue-600', 'bg-green-600');
                     form.reset();
                     setTimeout(() => { location.reload(); }, 1500);
+                } else {
+                    throw new Error("Error en el servidor");
                 }
             } catch (err) {
                 btn.disabled = false;
                 btn.innerText = 'Error';
+                console.error(err);
             }
         }
 
+        // 3. Función de Sincronización Inteligente
         async function sincronizarReportesPendientes() {
-            // Si ya se está sincronizando o estamos offline, no hacer nada
             if (estaSincronizando || !navigator.onLine) return;
 
-            const pendientes = await db.reportes.where('sincronizado').equals(0).toArray();
+            // Buscamos cualquier reporte pendiente
+            const pendientes = await db.reportes.toArray();
+            
             if (pendientes.length === 0) return;
 
-            estaSincronizando = true; // Bloqueamos nuevas ejecuciones
-            console.log(`Sincronizando ${pendientes.length} reportes...`);
+            estaSincronizando = true;
+            console.log(`Intentando sincronizar ${pendientes.length} reportes...`);
 
             let exitos = 0;
+            const token = document.querySelector('input[name="_token"]').value;
+
             for (const reporte of pendientes) {
                 const formData = new FormData();
                 formData.append('comentario', reporte.comentario);
-                formData.append('_token', document.querySelector('input[name="_token"]').value);
+                formData.append('_token', token);
 
                 try {
                     const response = await fetch(`/ejecucion/reporte/${reporte.tarea_id}/guardar`, {
@@ -341,25 +358,30 @@
                         exitos++;
                     }
                 } catch (err) {
-                    console.error("Error en uno de los reportes:", err);
+                    console.error("Fallo al subir reporte ID:", reporte.id, err);
                 }
             }
 
             if (exitos > 0) {
-                alert(`✅ Se han sincronizado ${exitos} reporte(s) pendiente(s).`);
+                alert(`✅ Aquatec Sync: Se subieron ${exitos} reporte(s) guardado(s) offline.`);
                 location.reload(); 
             }
             
             estaSincronizando = false;
         }
 
-        // Detectar cambios de conexión
+        // 4. Eventos de activación
         window.addEventListener('online', sincronizarReportesPendientes);
-
-        // Ejecutar al cargar la página pero con un pequeño retraso
+        
+        // Revisar al cargar la página
         window.addEventListener('load', () => {
-            setTimeout(sincronizarReportesPendientes, 2000);
+            setTimeout(sincronizarReportesPendientes, 3000); // 3 segundos para asegurar carga
+        });
+
+        // Revisar cuando el usuario vuelve a abrir la app (Focus)
+        window.addEventListener('focus', () => {
+            if (navigator.onLine) sincronizarReportesPendientes();
         });
     </script>
-    
+
 </x-app-layout>
