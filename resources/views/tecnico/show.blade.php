@@ -314,7 +314,6 @@
             if (pendientes.length === 0) return;
 
             estaSincronizando = true;
-            console.log("Sincronizando...");
 
             for (const r of pendientes) {
                 const exito = await enviarAlServidor(r.tarea_id, r.comentario);
@@ -323,13 +322,14 @@
                 }
             }
             
-            alert("✅ ¡Reportes sincronizados con el servidor!");
-            location.reload();
+            // En lugar de un alert molesto, refrescamos la página 
+            // para que aparezcan los nuevos reportes automáticamente
             estaSincronizando = false;
+            location.reload(); 
         }
 
-        // Revisión cada 5 segundos
-        setInterval(autoSync, 5000);
+        // Revisa cada 10 segundos, pero sin avisar con carteles
+        setInterval(autoSync, 10000);
         window.addEventListener('online', autoSync);
     </script>
 
