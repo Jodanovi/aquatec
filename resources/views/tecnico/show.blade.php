@@ -171,7 +171,7 @@
                                         <span class="txt-foto-nueva-{{ $tarea->id }} text-[10px] font-black uppercase text-slate-400">Fotos</span>
                                         <input type="file" name="fotos[]" multiple accept="image/*" class="hidden" onchange="actualizarLabelFoto(this, '{{ $tarea->id }}')">
                                     </label>
-                                    <button id="enviar_reporte" type="submit" class="bg-blue-600 text-white px-6 rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-blue-200">Enviar</button>
+                                     <button id="enviar_reporte" type="button" onclick="manejarEnvio(this)" class="bg-blue-600 text-white px-6 rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-blue-200">Enviar</button>
                                 </div>
                             </form>
                         @endif
@@ -258,64 +258,58 @@
             reportes: '++id, tarea_id, comentario, sincronizado'
         });
 
-        document.querySelectorAll('form[action*="reporte/guardar"]').forEach(form => {
-            form.addEventListener('submit', async function(e) {
-                e.preventDefault(); // DETENEMOS LA RECARGA SIEMPRE
-                
-                const formData = new FormData(this);
-                const tareaId = this.action.split('/').pop();
-                const btn = this.querySelector('button[type="submit"]');
-                const originalText = btn.innerText;
+        async function manejarEnvio(btn) {
+            const form = btn.closest('form');
+            const formData = new FormData(form);
+            const tareaId = form.action.split('/').pop();
+            const comentario = formData.get('comentario');
 
-                // 1. SI NO HAY INTERNET
-                if (!navigator.onLine) {
-                    await db.reportes.add({
-                        tarea_id: tareaId,
-                        comentario: formData.get('comentario'),
-                        fecha: new Date().toISOString(),
-                        sincronizado: 0
-                    });
+            if (!comentario.trim()) {
+                alert("Escribe un avance primero.");
+                return;
+            }
 
-                    // Feedback visual sin salir de la página
-                    btn.classList.replace('bg-blue-600', 'bg-orange-500');
-                    btn.innerText = 'Guardado Local';
-                    this.reset();
-                    alert('⚠️ Guardado en el celular (Sin señal). Se subirá al volver internet.');
-                    return;
-                }
+            // --- ESCENARIO: SIN CONEXIÓN ---
+            if (!navigator.onLine) {
+                await db.reportes.add({
+                    tarea_id: tareaId,
+                    comentario: comentario,
+                    fecha: new Date().toISOString(),
+                    sincronizado: 0
+                });
 
-                // 2. SI HAY INTERNET (Envío silencioso a Laravel)
-                btn.innerText = 'Enviando...';
-                btn.disabled = true;
+                btn.classList.replace('bg-blue-600', 'bg-orange-500');
+                btn.innerText = 'Guardado Local';
+                form.reset();
+                alert('⚠️ Estás offline. Guardado en el celular.');
+                return;
+            }
 
-                try {
-                    const response = await fetch(this.action, {
-                        method: 'POST',
-                        body: formData,
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
-                            'Accept': 'application/json'
-                        }
-                    });
+            // --- ESCENARIO: CON CONEXIÓN ---
+            btn.innerText = 'Enviando...';
+            btn.disabled = true;
 
-                    if (response.ok) {
-                        btn.innerText = '¡Enviado!';
-                        btn.classList.replace('bg-blue-600', 'bg-green-600');
-                        this.reset();
-                        setTimeout(() => {
-                            btn.innerText = originalText;
-                            btn.classList.replace('bg-green-600', 'bg-blue-600');
-                            btn.disabled = false;
-                            // Opcional: recargar solo la lista de reportes o la página
-                            location.reload(); 
-                        }, 2000);
+            try {
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
+                        'Accept': 'application/json'
                     }
-                } catch (err) {
-                    console.error("Error al enviar:", err);
-                    btn.disabled = false;
-                    btn.innerText = originalText;
+                });
+
+                if (response.ok) {
+                    btn.innerText = '¡Enviado!';
+                    btn.classList.replace('bg-blue-600', 'bg-green-600');
+                    form.reset();
+                    setTimeout(() => { location.reload(); }, 1500);
                 }
-            });
-        });
+            } catch (err) {
+                btn.disabled = false;
+                btn.innerText = 'Error';
+                console.error(err);
+            }
+        }
     </script>
 </x-app-layout>
