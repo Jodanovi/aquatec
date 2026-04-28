@@ -311,6 +311,7 @@
                     body: JSON.stringify({ comentario: texto }),
                     headers: {
                         'Content-Type': 'application/json',
+                        'Accept': 'application/json', // <--- AÑADE ESTO: Le dice a Laravel que quieres una respuesta JSON
                         'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
                         'X-Requested-With': 'XMLHttpRequest'
                     }

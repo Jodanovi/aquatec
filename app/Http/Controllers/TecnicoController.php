@@ -29,32 +29,29 @@ class TecnicoController extends Controller
     public function guardarReporte(Request $request, $tareaId)
     {
         try {
-            // 1. Extraer comentario de JSON o Formulario
-            $comentario = $request->isJson() ? $request->json('comentario') : $request->input('comentario');
+            // 1. Extraer comentario (simplificado para que funcione con fetch JSON o Formulario)
+            $comentario = $request->input('comentario');
 
             if (empty($comentario)) {
-                return response()->json(['success' => false, 'error' => 'Comentario vacío'], 422);
+                return response()->json([
+                    'success' => false, 
+                    'error' => 'El comentario llegó vacío al servidor'
+                ], 422);
             }
 
             // 2. Buscar tarea
             $tarea = OtTarea::findOrFail($tareaId);
 
-            // 3. Crear el reporte con usuario de respaldo
+            // 3. Crear el reporte
             $reporte = new OtTareaReporte();
             $reporte->ot_tarea_id = $tarea->id;
-            
-            // Buscamos un técnico si la sesión Auth expiró (ID 1 suele ser el Admin o primer técnico)
-            // Por esto (Para debuggear):
-            if (Auth::check()) {
-                $reporte->user_id = Auth::id();
-            } else {
-                // Si entra aquí, es que Laravel NO te está reconociendo la sesión
-                // Asegúrate de que el usuario ID 1 exista en tu base de datos de Railway
-                $reporte->user_id = 1; 
-            } 
             $reporte->comentario = $comentario;
             
-            // Guardar fotos si existen (solo en envío online directo)
+            // Asignación de Usuario: Si la sesión falla, usamos el ID 1 (Admin)
+            // Asegúrate de que el ID 1 existe en tu tabla 'users' de Railway
+            $reporte->user_id = Auth::check() ? Auth::id() : 1; 
+            
+            // 4. Guardar fotos (solo si vienen en la petición online)
             if ($request->hasFile('fotos')) {
                 $rutas = [];
                 foreach ($request->file('fotos') as $foto) {
@@ -65,25 +62,28 @@ class TecnicoController extends Controller
             
             $reporte->save();
 
-            if ($request->has('finalizar_tarea')) {
+            // 5. Actualizar estado de tarea si se solicita
+            if ($request->has('finalizar_tarea') || $request->input('finalizar_tarea') == true) {
                 $tarea->update(['estado' => 'finalizada']);
             }
 
-            // 4. Respuesta para la PWA
-            if ($request->expectsJson() || $request->isJson()) {
+            // 6. Respuesta consistente para AJAX/Fetch y PWA
+            if ($request->expectsJson() || $request->isJson() || $request->ajax()) {
                 return response()->json([
                     'success' => true,
-                    'id_generado' => $reporte->id
+                    'id_generado' => $reporte->id,
+                    'message' => 'Guardado correctamente'
                 ], 200);
             }
 
             return redirect()->back()->with('success', 'Reporte guardado.');
 
         } catch (\Exception $e) {
-            // Si algo falla, enviamos error para que el celular NO borre el reporte naranja
+            // ERROR CRÍTICO: Enviamos el mensaje real para debuggear en el celular
             return response()->json([
                 'success' => false, 
-                'error' => $e->getMessage()
+                'error' => 'Error en servidor: ' . $e->getMessage(),
+                'linea' => $e->getLine()
             ], 500);
         }
     }
