@@ -307,11 +307,19 @@
                     }
                 });
 
-                // Si el servidor responde OK (código 200), Laravel guardó el dato
-                return response.ok;
-            } catch (e) {
-                console.error("Fallo de red al intentar sincronizar.");
-                return false;
+                if (!response.ok) {
+                    // ESTO NOS DIRÁ EL ERROR REAL
+                    const errorMsg = await response.text();
+                    console.error("Error servidor:", errorMsg);
+                    // Si quieres ver el error en el cel, quita las barras de la línea de abajo:
+                    // alert("Error del servidor: " + response.status); 
+                    return false;
+                }
+
+                return true;
+            } catch (e) { 
+                console.error("Error de red:", e);
+                return false; 
             }
         }
 
