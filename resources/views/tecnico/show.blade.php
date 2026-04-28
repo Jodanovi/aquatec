@@ -250,47 +250,72 @@
             }
         }
     </script>
-    {{-- LÓGICA DE BASE DE DATOS LOCAL Y OFFLINE --}}
+    {{-- LÓGICA DE ENVÍO SILENCIOSO Y OFFLINE --}}
     <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
     <script>
-        // 1. Inicializar la Base de Datos Local
         const db = new Dexie("AquatecOffline");
         db.version(1).stores({
             reportes: '++id, tarea_id, comentario, sincronizado'
         });
 
-        // 2. Interceptar el envío de reportes
         document.querySelectorAll('form[action*="reporte/guardar"]').forEach(form => {
             form.addEventListener('submit', async function(e) {
-                // Si no hay internet, manejamos el guardado local
+                e.preventDefault(); // DETENEMOS LA RECARGA SIEMPRE
+                
+                const formData = new FormData(this);
+                const tareaId = this.action.split('/').pop();
+                const btn = this.querySelector('button[type="submit"]');
+                const originalText = btn.innerText;
+
+                // 1. SI NO HAY INTERNET
                 if (!navigator.onLine) {
-                    e.preventDefault(); // Detener el envío normal al servidor
+                    await db.reportes.add({
+                        tarea_id: tareaId,
+                        comentario: formData.get('comentario'),
+                        fecha: new Date().toISOString(),
+                        sincronizado: 0
+                    });
 
-                    const formData = new FormData(this);
-                    const tareaId = this.action.split('/').pop(); // Obtenemos el ID de la tarea desde la URL
-                    
-                    try {
-                        await db.reportes.add({
-                            tarea_id: tareaId,
-                            comentario: formData.get('comentario'),
-                            fecha: new Date().toISOString(),
-                            sincronizado: 0 // Marcamos que está pendiente
-                        });
+                    // Feedback visual sin salir de la página
+                    btn.classList.replace('bg-blue-600', 'bg-orange-500');
+                    btn.innerText = 'Guardado Local';
+                    this.reset();
+                    alert('⚠️ Guardado en el celular (Sin señal). Se subirá al volver internet.');
+                    return;
+                }
 
-                        alert('⚠️ Sin conexión. El reporte se guardó en tu celular y se enviará cuando recuperes señal.');
-                        this.reset(); // Limpiamos el formulario
-                        
-                        // Opcional: Cambiar el color del botón para indicar que hay algo pendiente
-                        const btn = this.querySelector('button[type="submit"]');
-                        btn.classList.replace('bg-blue-600', 'bg-orange-500');
-                        btn.innerText = 'Pendiente Sync';
-                    } catch (err) {
-                        console.error("Error en IndexedDB:", err);
+                // 2. SI HAY INTERNET (Envío silencioso a Laravel)
+                btn.innerText = 'Enviando...';
+                btn.disabled = true;
+
+                try {
+                    const response = await fetch(this.action, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    if (response.ok) {
+                        btn.innerText = '¡Enviado!';
+                        btn.classList.replace('bg-blue-600', 'bg-green-600');
+                        this.reset();
+                        setTimeout(() => {
+                            btn.innerText = originalText;
+                            btn.classList.replace('bg-green-600', 'bg-blue-600');
+                            btn.disabled = false;
+                            // Opcional: recargar solo la lista de reportes o la página
+                            location.reload(); 
+                        }, 2000);
                     }
+                } catch (err) {
+                    console.error("Error al enviar:", err);
+                    btn.disabled = false;
+                    btn.innerText = originalText;
                 }
             });
         });
-
-        console.log("🚀 Sistema de reportes offline de Aquatec listo.");
     </script>
 </x-app-layout>
