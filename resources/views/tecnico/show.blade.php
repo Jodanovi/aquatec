@@ -250,6 +250,10 @@
             }
         }
     </script>
+    <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
+    <script>
+    var vConsole = new window.VConsole();
+    </script>
     {{-- LÓGICA DE ENVÍO SILENCIOSO, OFFLINE Y AUTO-SYNC (VERSIÓN CORREGIDA) --}}
     <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
     <script>
@@ -270,7 +274,9 @@
             // 1. Si no hay internet, guardamos en Dexie
             if (!navigator.onLine) {
                 const partes = form.action.split('/');
-                const tareaId = partes[partes.length - 2]; 
+                const tareaId = partes[partes.length - 2].trim();
+                
+                console.log("ID detectado para guardar:", tareaId); // Esto lo verás en el botón verde
                 
                 await db.reportes.add({
                     tarea_id: String(tareaId),
