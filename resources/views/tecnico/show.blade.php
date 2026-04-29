@@ -273,11 +273,12 @@
 
             // 1. Si no hay internet, guardamos en Dexie
             if (!navigator.onLine) {
-                const partes = form.action.split('/');
-                const tareaId = partes[partes.length - 2].trim();
+                // Busca esto dentro de manejarEnvio
+                const partes = form.action.split('/').filter(p => p !== ""); // Quitamos partes vacías
+                const tareaId = partes[partes.length - 2]; // El ID siempre es el penúltimo antes de 'guardar'
                 
                 console.log("ID detectado para guardar:", tareaId); // Esto lo verás en el botón verde
-                
+
                 await db.reportes.add({
                     tarea_id: String(tareaId),
                     comentario: comentario
@@ -344,36 +345,43 @@
         }
 
         async function autoSync() {
-            if (estaSincronizando || !navigator.onLine) return;
-            
-            const pendientes = await db.reportes.toArray();
-            if (pendientes.length === 0) return;
+        if (estaSincronizando || !navigator.onLine) return;
+        
+        const pendientes = await db.reportes.toArray();
+        if (pendientes.length === 0) return;
 
-            estaSincronizando = true;
-            let algunExitoReal = false;
+        estaSincronizando = true;
+        console.log("Iniciando sincronización de " + pendientes.length + " elementos.");
 
-            for (const r of pendientes) {
-                // IMPORTANTE: Buscamos el formulario de esa tarea específica para tener su URL correcta
-                const formTarea = document.querySelector(`form[action*="/reporte/${r.tarea_id}/guardar"]`);
-                const urlDestino = formTarea ? formTarea.action : `/ejecucion/reporte/${r.tarea_id}/guardar`;
-
-                console.log("Sincronizando automáticamente tarea:", r.tarea_id);
-                
-                const exito = await enviarAlServidor(urlDestino, r.comentario);
-                
-                if (exito) {
-                    await db.reportes.delete(r.id);
-                    algunExitoReal = true;
-                }
+        for (const r of pendientes) {
+            // CONSTRUCCIÓN SEGURA DE URL
+            // Si el ID es 'reporte', lo ignoramos para no romper el servidor
+            if (isNaN(r.tarea_id)) {
+                console.error("ID inválido detectado:", r.tarea_id);
+                await db.reportes.delete(r.id); // Limpiamos basura
+                continue;
             }
-            
-            estaSincronizando = false;
 
-            if (algunExitoReal) {
-                console.log("Sincronización completa. Recargando...");
-                location.reload(); 
+            const urlDestino = `/ejecucion/reporte/${r.tarea_id}/guardar`;
+            console.log("Enviando a:", urlDestino);
+            
+            const exito = await enviarAlServidor(urlDestino, r.comentario);
+            
+            if (exito) {
+                console.log("✅ Tarea " + r.tarea_id + " subida con éxito.");
+                await db.reportes.delete(r.id);
+            } else {
+                console.error("❌ Falló el envío de la tarea " + r.tarea_id);
             }
         }
+        
+        estaSincronizando = false;
+        // Solo recargamos si logramos subir algo
+        const pendientesDespues = await db.reportes.toArray();
+        if (pendientesDespues.length < pendientes.length) {
+            location.reload(); 
+        }
+    }
 
         setInterval(autoSync, 10000);
         window.addEventListener('online', autoSync);
