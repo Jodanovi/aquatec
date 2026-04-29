@@ -374,29 +374,29 @@
         window.addEventListener('focus', autoSync);
 
         async function marcarPendientesAlCargar() {
-            try {
-                const pendientes = await db.reportes.toArray();
-                pendientes.forEach(p => {
-                    const form = document.querySelector(`form[action*="/reporte/${p.tarea_id}/guardar"]`);
-                    if (form) {
-                        const btn = form.querySelector('button[type="button"]');
-                        const textarea = form.querySelector('textarea');
-                        
-                        if (btn) {
-                            btn.className = "bg-orange-500 text-white px-6 rounded-2xl text-[10px] font-black uppercase shadow-lg";
-                            btn.innerText = 'PENDIENTE (LOCAL)';
-                        }
-                        if (textarea) {
-                            textarea.value = p.comentario;
-                        }
+            const pendientes = await db.reportes.toArray();
+            console.log("Pendientes en local:", pendientes.length); // Esto te ayudará a ver si hay algo en la consola
+
+            pendientes.forEach(p => {
+                // Buscamos el formulario de esa tarea
+                const form = document.querySelector(`form[action*="/reporte/${p.tarea_id}/guardar"]`);
+                if (form) {
+                    const btn = form.querySelector('button[type="button"]');
+                    const textarea = form.querySelector('textarea');
+                    
+                    if (btn) {
+                        // Forzamos el color naranja para que sobreviva al refrescar
+                        btn.className = "bg-orange-500 text-white px-6 rounded-2xl text-[10px] font-black uppercase shadow-lg";
+                        btn.innerText = 'PENDIENTE (CELULAR)';
                     }
-                });
-            } catch (e) {
-                console.error("Error al marcar pendientes:", e);
-            }
+                    if (textarea) {
+                        textarea.value = p.comentario; // Mantiene el texto escrito
+                    }
+                }
+            });
         }
 
-        // Ejecutamos la función apenas cargue la página
-        marcarPendientesAlCargar();        
+        // Ejecutar justo al cargar la página
+        marcarPendientesAlCargar();       
     </script>
 </x-app-layout>
