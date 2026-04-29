@@ -250,13 +250,9 @@
             }
         }
     </script>
-    <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
-    <script>
-    var vConsole = new window.VConsole();
-    </script>
-    {{-- LÓGICA DE ENVÍO SILENCIOSO, OFFLINE Y AUTO-SYNC (VERSIÓN CORREGIDA) --}}
     <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
     <script>
+        // 1. Configuración de Base de Datos
         var db = new Dexie("AquatecDB");
         db.version(1).stores({
             reportes: '++id, tarea_id, comentario'
@@ -264,6 +260,7 @@
 
         let estaSincronizando = false;
 
+        // 2. Función Principal de Envío (La que llama el botón)
         async function manejarEnvio(btn) {
             const form = btn.closest('form');
             const textarea = form.querySelector('textarea');
@@ -271,62 +268,46 @@
 
             if (!comentario.trim()) return alert("Escribe un avance.");
 
-            // 1. Si no hay internet, guardamos en Dexie
-            if (!navigator.onLine) {
-                // Busca esto dentro de manejarEnvio
-                const partes = form.action.split('/').filter(p => p !== ""); // Quitamos partes vacías
-                const tareaId = partes[partes.length - 2]; // El ID siempre es el penúltimo antes de 'guardar'
-                
-                console.log("ID detectado para guardar:", tareaId); // Esto lo verás en el botón verde
+            // Extraer ID de la tarea de forma segura
+            const partes = form.action.split('/').filter(p => p !== "");
+            const tareaId = partes[partes.length - 2];
 
+            // MODO OFFLINE
+            if (!navigator.onLine) {
+                console.log("Sin internet. Guardando ID:", tareaId);
                 await db.reportes.add({
                     tarea_id: String(tareaId),
                     comentario: comentario
                 });
                 
-                btn.className = "bg-orange-500 text-white px-6 rounded-2xl text-[10px] font-black uppercase shadow-lg";
+                btn.className = "bg-orange-500 text-white px-6 rounded-2xl text-[10px] font-black uppercase shadow-lg animate-pulse";
                 btn.innerText = 'EN CELULAR';
                 textarea.value = '';
                 return;
             }
 
-            // 2. Si hay internet, enviamos usando la URL del FORM
+            // MODO ONLINE
             btn.innerText = 'ENVIANDO...';
             btn.disabled = true;
 
             try {
-                const response = await fetch(form.action, { // <--- USAMOS LA RUTA DEL FORMULARIO
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': form.querySelector('input[name="_token"]').value, // Token del form
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
-                    body: JSON.stringify({ comentario: comentario })
-                });
-
-                if (response.ok) {
-                    location.reload(); // Éxito
+                const exito = await enviarAlServidor(form.action, comentario);
+                if (exito) {
+                    location.reload();
                 } else {
-                    const errorData = await response.json();
-                    console.error("Error del servidor:", errorData);
                     btn.innerText = 'REINTENTAR';
                     btn.disabled = false;
-                    alert("Error: " + (errorData.message || "Sesión expirada o ruta inválida"));
+                    alert("Error al guardar en el servidor. Verifica tu sesión.");
                 }
             } catch (e) {
-                console.error("Error de red:", e);
                 btn.innerText = 'REINTENTAR';
                 btn.disabled = false;
             }
         }
 
-        // Cambia la definición de la función para que reciba la URL directamente
+        // 3. Motor de Envío (Fetch)
         async function enviarAlServidor(url, texto) { 
             try {
-                // Buscamos el token que Laravel pone en el meta o en cualquier input
                 const token = document.querySelector('input[name="_token"]')?.value || 
                             document.querySelector('meta[name="csrf-token"]')?.content;
 
@@ -337,71 +318,67 @@
                     headers: {
                         'Content-Type': 'application/json',
                         'Accept': 'application/json',
-                        'X-CSRF-TOKEN': token, // <--- Token actualizado
+                        'X-CSRF-TOKEN': token,
                         'X-Requested-With': 'XMLHttpRequest'
                     }
                 });
-
-                console.log("Respuesta del servidor status:", response.status);
+                console.log("Status Servidor:", response.status);
                 return response.ok;
             } catch (e) { 
-                console.error("Error de conexión en el fetch:", e);
+                console.error("Error de red:", e);
                 return false; 
             }
         }
 
-        for (const r of pendientes) {
-            const urlDestino = `/ejecucion/reporte/${r.tarea_id}/guardar`;
-            console.log("Intentando enviar tarea " + r.tarea_id + " a " + urlDestino);
+        // 4. Sincronización Automática
+        async function autoSync() {
+            if (estaSincronizando || !navigator.onLine) return;
             
-            // Le ponemos un tiempo límite de 10 segundos al envío
-            const controlador = new AbortController();
-            const timeoutId = setTimeout(() => controlador.abort(), 10000);
+            const pendientes = await db.reportes.toArray();
+            if (pendientes.length === 0) return;
 
-            try {
+            estaSincronizando = true;
+            let algunExito = false;
+
+            console.log("Sincronizando " + pendientes.length + " reportes...");
+
+            for (const r of pendientes) {
+                const urlDestino = `/ejecucion/reporte/${r.tarea_id}/guardar`;
+                
                 const exito = await enviarAlServidor(urlDestino, r.comentario);
-                clearTimeout(timeoutId);
-
                 if (exito) {
-                    console.log("✅ Tarea " + r.tarea_id + " subida.");
                     await db.reportes.delete(r.id);
-                    algunExitoReal = true;
-                } else {
-                    console.log("❌ Servidor rechazó tarea " + r.tarea_id);
+                    algunExito = true;
+                    console.log("✅ Tarea " + r.tarea_id + " enviada.");
                 }
-            } catch (err) {
-                console.log("⏳ Servidor no responde, esperando siguiente intento...");
             }
+
+            estaSincronizando = false;
+            if (algunExito) location.reload();
         }
 
-        setInterval(autoSync, 10000);
-        window.addEventListener('online', autoSync);
-        window.addEventListener('focus', autoSync);
-
+        // 5. Pintar botones naranja al cargar
         async function marcarPendientesAlCargar() {
             const pendientes = await db.reportes.toArray();
-            console.log("Pendientes en local:", pendientes.length); // Esto te ayudará a ver si hay algo en la consola
+            console.log("Pendientes en local:", pendientes.length);
 
             pendientes.forEach(p => {
-                // Buscamos el formulario de esa tarea
                 const form = document.querySelector(`form[action*="/reporte/${p.tarea_id}/guardar"]`);
                 if (form) {
-                    const btn = form.querySelector('button[type="button"]');
+                    const btn = form.querySelector('button');
                     const textarea = form.querySelector('textarea');
-                    
                     if (btn) {
-                        // Forzamos el color naranja para que sobreviva al refrescar
-                        btn.className = "bg-orange-500 text-white px-6 rounded-2xl text-[10px] font-black uppercase shadow-lg";
+                        btn.className = "bg-orange-500 text-white px-6 rounded-2xl text-[10px] font-black uppercase shadow-lg animate-pulse";
                         btn.innerText = 'PENDIENTE (CELULAR)';
                     }
-                    if (textarea) {
-                        textarea.value = p.comentario; // Mantiene el texto escrito
-                    }
+                    if (textarea) textarea.value = p.comentario;
                 }
             });
         }
 
-        // Ejecutar justo al cargar la página
-        marcarPendientesAlCargar();       
+        // Eventos de ejecución
+        setInterval(autoSync, 10000);
+        window.addEventListener('online', autoSync);
+        marcarPendientesAlCargar();
     </script>
 </x-app-layout>
