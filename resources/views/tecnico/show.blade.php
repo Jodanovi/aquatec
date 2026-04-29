@@ -377,20 +377,18 @@
         window.addEventListener('online', autoSync);
         window.addEventListener('focus', autoSync);
 
-        // --- PEGA EL PUNTO 3 AQUÍ (ANTES DEL CIERRE DEL SCRIPT) ---
         async function marcarPendientesAlCargar() {
             try {
                 const pendientes = await db.reportes.toArray();
                 pendientes.forEach(p => {
-                    // Busca el formulario que contiene el ID de la tarea pendiente
                     const form = document.querySelector(`form[action*="/reporte/${p.tarea_id}/guardar"]`);
                     if (form) {
-                        const btn = form.querySelector('#enviar_reporte'); // Usamos el ID del botón
+                        const btn = form.querySelector('button[type="button"]');
                         const textarea = form.querySelector('textarea');
                         
                         if (btn) {
                             btn.className = "bg-orange-500 text-white px-6 rounded-2xl text-[10px] font-black uppercase shadow-lg";
-                            btn.innerText = 'PENDIENTE';
+                            btn.innerText = 'PENDIENTE (LOCAL)';
                         }
                         if (textarea) {
                             textarea.value = p.comentario;
@@ -402,8 +400,7 @@
             }
         }
 
-        // Llamamos a la función inmediatamente al cargar la página
-        marcarPendientesAlCargar();
+        // Ejecutamos la función apenas cargue la página
+        marcarPendientesAlCargar();        
     </script>
-
 </x-app-layout>
