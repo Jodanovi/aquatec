@@ -261,7 +261,8 @@
         // 1. Configuración de Base de Datos
         var db = new Dexie("AquatecDB");
         db.version(1).stores({
-            reportes: '++id, tarea_id, comentario'
+            // Agregamos 'url' a los campos
+            reportes: '++id, tarea_id, comentario, url' 
         });
 
         let estaSincronizando = false;
@@ -280,11 +281,14 @@
 
             // MODO OFFLINE
             if (!navigator.onLine) {
-                console.log("Sin internet. Guardando ID:", tareaId);
-                await db.reportes.add({
-                    tarea_id: String(tareaId),
-                    comentario: comentario
-                });
+            const partes = form.action.split('/').filter(p => p !== "");
+            const tareaId = partes[partes.length - 2];
+
+            await db.reportes.add({
+                tarea_id: String(tareaId),
+                comentario: comentario,
+                url: form.action // <--- GUARDAMOS LA URL EXACTA DEL FORMULARIO
+            });
                 
                 btn.className = "bg-orange-500 text-white px-6 rounded-2xl text-[10px] font-black uppercase shadow-lg animate-pulse";
                 btn.innerText = 'EN CELULAR';
@@ -349,13 +353,18 @@
             console.log("Sincronizando " + pendientes.length + " reportes...");
 
             for (const r of pendientes) {
-                const urlDestino = `/ejecucion/reporte/${r.tarea_id}/guardar`;
+                // Usamos la URL que guardamos, o la construimos si por alguna razón no existe
+                const urlDestino = r.url || `/ejecucion/reporte/${r.tarea_id}/guardar`;
+                
+                console.log("Intentando enviar a URL real:", urlDestino);
                 
                 const exito = await enviarAlServidor(urlDestino, r.comentario);
                 if (exito) {
                     await db.reportes.delete(r.id);
                     algunExito = true;
-                    console.log("✅ Tarea " + r.tarea_id + " enviada.");
+                    console.log("✅ Tarea " + r.tarea_id + " subida.");
+                } else {
+                    console.log("❌ Error persistente en URL:", urlDestino);
                 }
             }
 
