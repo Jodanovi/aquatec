@@ -316,10 +316,10 @@
             }
         }
 
-        async function enviarAlServidor(id, texto) {
+        // Cambia la definición de la función para que reciba la URL directamente
+        async function enviarAlServidor(url, texto) { 
             try {
-                // Forzamos que la ruta sea absoluta empezando con /
-                const response = await fetch(`/ejecucion/reporte/${id}/guardar`, {
+                const response = await fetch(url, { // <--- Usamos la URL que viene del form
                     method: 'POST',
                     credentials: 'same-origin', 
                     body: JSON.stringify({ comentario: texto }),
@@ -331,11 +331,7 @@
                     }
                 });
 
-                if (!response.ok) {
-                    return false;
-                }
-
-                return true;
+                return response.ok;
             } catch (e) { 
                 return false; 
             }
