@@ -250,11 +250,7 @@
             }
         }
     </script>
-    <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
-    <script>
-        var vConsole = new window.VConsole();
-        console.log("vConsole recuperada y lista");
-    </script>
+    
 
     <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
     <script>
@@ -332,50 +328,47 @@
                         'X-Requested-With': 'XMLHttpRequest'
                     }
                 });
-                console.log("Status Servidor:", response.status);
+                //console.log("Status Servidor:", response.status);
                 return response.ok;
             } catch (e) { 
-                console.error("Error de red:", e);
+                //console.error("Error de red:", e);
                 return false; 
             }
         }
 
         // 4. Sincronización Automática
         async function autoSync() {
-            if (estaSincronizando || !navigator.onLine) return;
-            
+            // 1. Una sola comprobación de seguridad al inicio
+            if (!navigator.onLine || estaSincronizando) return;
+
+            // 2. Traer pendientes
             const pendientes = await db.reportes.toArray();
             if (pendientes.length === 0) return;
 
+            // 3. Bloqueo de bandera para evitar procesos paralelos
             estaSincronizando = true;
             let algunExito = false;
 
-            console.log("Sincronizando " + pendientes.length + " reportes...");
-
             for (const r of pendientes) {
-                // Usamos la URL que guardamos, o la construimos si por alguna razón no existe
                 const urlDestino = r.url || `/ejecucion/reporte/${r.tarea_id}/guardar`;
-                
-                console.log("Intentando enviar a URL real:", urlDestino);
                 
                 const exito = await enviarAlServidor(urlDestino, r.comentario);
                 if (exito) {
                     await db.reportes.delete(r.id);
                     algunExito = true;
-                    console.log("✅ Tarea " + r.tarea_id + " subida.");
-                } else {
-                    console.log("❌ Error persistente en URL:", urlDestino);
                 }
             }
 
             estaSincronizando = false;
+            
+            // 4. Solo recarga si realmente se subió algo al servidor
             if (algunExito) location.reload();
         }
 
         // 5. Pintar botones naranja al cargar
         async function marcarPendientesAlCargar() {
             const pendientes = await db.reportes.toArray();
-            console.log("Pendientes en local:", pendientes.length);
+            //console.log("Pendientes en local:", pendientes.length);
 
             pendientes.forEach(p => {
                 const form = document.querySelector(`form[action*="/reporte/${p.tarea_id}/guardar"]`);
@@ -391,9 +384,13 @@
             });
         }
 
-        // Eventos de ejecución
-        setInterval(autoSync, 10000);
+        // Se activa justo cuando vuelve la señal de internet
         window.addEventListener('online', autoSync);
+
+        // Se activa cuando el técnico vuelve a mirar la App (cambia de pestaña o desbloquea el móvil)
+        window.addEventListener('focus', autoSync);
+
+        // Pintar los botones naranja si hay cosas guardadas de antes
         marcarPendientesAlCargar();
     </script>
 </x-app-layout>
