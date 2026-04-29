@@ -250,6 +250,12 @@
             }
         }
     </script>
+    <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
+    <script>
+        var vConsole = new window.VConsole();
+        console.log("vConsole recuperada y lista");
+    </script>
+
     <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
     <script>
         // 1. Configuración de Base de Datos
