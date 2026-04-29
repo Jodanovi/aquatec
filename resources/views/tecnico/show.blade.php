@@ -326,62 +326,53 @@
         // Cambia la definición de la función para que reciba la URL directamente
         async function enviarAlServidor(url, texto) { 
             try {
-                const response = await fetch(url, { // <--- Usamos la URL que viene del form
+                // Buscamos el token que Laravel pone en el meta o en cualquier input
+                const token = document.querySelector('input[name="_token"]')?.value || 
+                            document.querySelector('meta[name="csrf-token"]')?.content;
+
+                const response = await fetch(url, {
                     method: 'POST',
                     credentials: 'same-origin', 
                     body: JSON.stringify({ comentario: texto }),
                     headers: {
                         'Content-Type': 'application/json',
                         'Accept': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
+                        'X-CSRF-TOKEN': token, // <--- Token actualizado
                         'X-Requested-With': 'XMLHttpRequest'
                     }
                 });
 
+                console.log("Respuesta del servidor status:", response.status);
                 return response.ok;
             } catch (e) { 
+                console.error("Error de conexión en el fetch:", e);
                 return false; 
             }
         }
 
-        async function autoSync() {
-        if (estaSincronizando || !navigator.onLine) return;
-        
-        const pendientes = await db.reportes.toArray();
-        if (pendientes.length === 0) return;
-
-        estaSincronizando = true;
-        console.log("Iniciando sincronización de " + pendientes.length + " elementos.");
-
         for (const r of pendientes) {
-            // CONSTRUCCIÓN SEGURA DE URL
-            // Si el ID es 'reporte', lo ignoramos para no romper el servidor
-            if (isNaN(r.tarea_id)) {
-                console.error("ID inválido detectado:", r.tarea_id);
-                await db.reportes.delete(r.id); // Limpiamos basura
-                continue;
-            }
-
             const urlDestino = `/ejecucion/reporte/${r.tarea_id}/guardar`;
-            console.log("Enviando a:", urlDestino);
+            console.log("Intentando enviar tarea " + r.tarea_id + " a " + urlDestino);
             
-            const exito = await enviarAlServidor(urlDestino, r.comentario);
-            
-            if (exito) {
-                console.log("✅ Tarea " + r.tarea_id + " subida con éxito.");
-                await db.reportes.delete(r.id);
-            } else {
-                console.error("❌ Falló el envío de la tarea " + r.tarea_id);
+            // Le ponemos un tiempo límite de 10 segundos al envío
+            const controlador = new AbortController();
+            const timeoutId = setTimeout(() => controlador.abort(), 10000);
+
+            try {
+                const exito = await enviarAlServidor(urlDestino, r.comentario);
+                clearTimeout(timeoutId);
+
+                if (exito) {
+                    console.log("✅ Tarea " + r.tarea_id + " subida.");
+                    await db.reportes.delete(r.id);
+                    algunExitoReal = true;
+                } else {
+                    console.log("❌ Servidor rechazó tarea " + r.tarea_id);
+                }
+            } catch (err) {
+                console.log("⏳ Servidor no responde, esperando siguiente intento...");
             }
         }
-        
-        estaSincronizando = false;
-        // Solo recargamos si logramos subir algo
-        const pendientesDespues = await db.reportes.toArray();
-        if (pendientesDespues.length < pendientes.length) {
-            location.reload(); 
-        }
-    }
 
         setInterval(autoSync, 10000);
         window.addEventListener('online', autoSync);
